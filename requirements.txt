@@ -1,0 +1,8 @@
+anthropic>=0.40.0
+kalshi-python-sync>=3.2.0
+streamlit>=1.30.0
+apscheduler>=3.10.0
+pydantic>=2.0
+python-dotenv>=1.0
+duckduckgo-search>=8.0.0
+beautifulsoup4>=4.12.0
