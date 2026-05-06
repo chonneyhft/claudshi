@@ -241,6 +241,8 @@ def get_tools() -> list:
     tools = list(MARKET_TOOLS)
     if config.ENABLE_WEB_RESEARCH:
         tools.extend(RESEARCH_TOOLS)
+    if tools:
+        tools[-1] = {**tools[-1], "cache_control": {"type": "ephemeral"}}
     return tools
 
 
@@ -258,17 +260,24 @@ class ToolDispatcher:
             self._researcher = WebResearcher()
         return self._researcher
 
-    def dispatch(self, tool_name: str, tool_input: dict) -> str:
+    def dispatch(self, tool_name: str, tool_input: dict) -> tuple:
+        """Dispatch a tool call.
+
+        Returns (content_str, raw) where content_str is what the model sees
+        and raw is the underlying dict/list/str for structural inspection.
+        """
         try:
             handler = getattr(self, f"_handle_{tool_name}", None)
             if not handler:
-                return json.dumps({"error": f"Unknown tool: {tool_name}"})
+                raw = {"error": f"Unknown tool: {tool_name}"}
+                return json.dumps(raw), raw
             result = handler(tool_input)
             if isinstance(result, str):
-                return result
-            return json.dumps(result, default=str)
+                return result, result
+            return json.dumps(result, default=str), result
         except Exception as e:
-            return json.dumps({"error": str(e)})
+            raw = {"error": str(e)}
+            return json.dumps(raw), raw
 
     # --- Code execution ---
 

@@ -11,6 +11,15 @@ from engine.paper_trader import PaperTrader
 MAX_TOOL_RESULT_CHARS = 4000
 MAX_CONSECUTIVE_ERRORS = 3
 SESSION_TIMEOUT_SECONDS = 600
+MAX_API_RETRIES = 4
+RETRY_BACKOFF_BASE_SECONDS = 1.0
+
+
+def _is_transient(exc: anthropic.APIError) -> bool:
+    if isinstance(exc, anthropic.APIConnectionError):
+        return True
+    status = getattr(exc, "status_code", None)
+    return status in (408, 409, 429, 500, 502, 503, 504, 529)
 
 
 class AgentHarness:
@@ -36,14 +45,22 @@ class AgentHarness:
         held_tickers = [p.ticker for p in portfolio.positions]
         market_feed = build_market_feed(self.dispatcher.kalshi, held_tickers)
 
-        system = build_system_prompt(
+        system_text = build_system_prompt(
             balance_cents=portfolio.balance_cents,
             num_positions=len(portfolio.positions),
             realized_pnl_cents=portfolio.realized_pnl_cents,
             db=self.trader.db,
             market_feed=market_feed,
         )
+        system = [
+            {
+                "type": "text",
+                "text": system_text,
+                "cache_control": {"type": "ephemeral"},
+            }
+        ]
 
+        tools = get_tools()
         messages = [{"role": "user", "content": user_message}]
         turn = 0
         total_input_tokens = 0
@@ -59,21 +76,37 @@ class AgentHarness:
                 break
 
             turn += 1
-            try:
-                response = self.client.messages.create(
-                    model=self.model,
-                    max_tokens=4096,
-                    system=system,
-                    tools=get_tools(),
-                    messages=messages,
-                )
-            except anthropic.APIError as e:
+            response = None
+            last_error: anthropic.APIError | None = None
+            for attempt in range(MAX_API_RETRIES + 1):
+                try:
+                    response = self.client.messages.create(
+                        model=self.model,
+                        max_tokens=4096,
+                        system=system,
+                        tools=tools,
+                        messages=messages,
+                    )
+                    break
+                except anthropic.APIError as e:
+                    last_error = e
+                    if attempt >= MAX_API_RETRIES or not _is_transient(e):
+                        break
+                    delay = RETRY_BACKOFF_BASE_SECONDS * (2 ** attempt)
+                    self.logger.log_turn(
+                        turn_number=turn,
+                        role="warning",
+                        content_text=f"Transient API error (attempt {attempt + 1}): {e}; retrying in {delay:.1f}s",
+                    )
+                    time.sleep(delay)
+
+            if response is None:
                 self.logger.log_turn(
                     turn_number=turn,
                     role="error",
-                    content_text=f"API error: {e}",
+                    content_text=f"API error: {last_error}",
                 )
-                final_text = f"[API error: {e}]"
+                final_text = f"[API error: {last_error}]"
                 break
 
             usage = {
@@ -118,16 +151,24 @@ class AgentHarness:
                 tool_results_log = []
                 turn_had_error = False
                 for tc in tool_calls:
-                    result_str = self.dispatcher.dispatch(tc["name"], tc["input"])
+                    result_str, raw = self.dispatcher.dispatch(tc["name"], tc["input"])
 
                     if len(result_str) > MAX_TOOL_RESULT_CHARS:
-                        result_str = result_str[:MAX_TOOL_RESULT_CHARS] + '...[truncated]"'
+                        result_str = result_str[:MAX_TOOL_RESULT_CHARS] + "...[truncated]"
+
+                    is_error = isinstance(raw, dict) and "error" in raw
+                    is_filled_trade = (
+                        tc["name"] == "place_trade"
+                        and isinstance(raw, dict)
+                        and raw.get("status") == "filled"
+                    )
 
                     tool_results_content.append(
                         {
                             "type": "tool_result",
                             "tool_use_id": tc["id"],
                             "content": result_str,
+                            **({"is_error": True} if is_error else {}),
                         }
                     )
                     tool_results_log.append(
@@ -137,9 +178,9 @@ class AgentHarness:
                             "result": result_str[:500],
                         }
                     )
-                    if tc["name"] == "place_trade" and '"status": "filled"' in result_str:
+                    if is_filled_trade:
                         trades_made += 1
-                    if '"error"' in result_str:
+                    if is_error:
                         turn_had_error = True
 
                 if turn_had_error:
@@ -147,12 +188,13 @@ class AgentHarness:
                 else:
                     consecutive_errors = 0
 
-                if consecutive_errors >= MAX_CONSECUTIVE_ERRORS:
-                    tool_results_content.append({
-                        "type": "tool_result",
-                        "tool_use_id": tool_calls[-1]["id"],
-                        "content": "Multiple consecutive tool errors. Please try a different approach or wrap up your analysis.",
-                    })
+                if consecutive_errors >= MAX_CONSECUTIVE_ERRORS and tool_results_content:
+                    last = tool_results_content[-1]
+                    last["content"] = (
+                        last["content"]
+                        + "\n\n[System: multiple consecutive tool errors. "
+                        "Please try a different approach or wrap up your analysis.]"
+                    )
                     consecutive_errors = 0
 
                 self.logger.log_turn(
@@ -163,6 +205,12 @@ class AgentHarness:
 
                 messages.append({"role": "user", "content": tool_results_content})
             else:
+                final_text = "\n".join(text_parts)
+                self.logger.log_turn(
+                    turn_number=turn,
+                    role="system",
+                    content_text=f"[Session ended: stop_reason={response.stop_reason}]",
+                )
                 break
 
         portfolio = self.trader.get_portfolio()
