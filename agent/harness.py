@@ -31,11 +31,17 @@ class AgentHarness:
         self, user_message: str = "Analyze the markets and make trading decisions."
     ) -> dict:
         portfolio = self.trader.get_portfolio()
+
+        from agent.market_feed import build_market_feed
+        held_tickers = [p.ticker for p in portfolio.positions]
+        market_feed = build_market_feed(self.dispatcher.kalshi, held_tickers)
+
         system = build_system_prompt(
             balance_cents=portfolio.balance_cents,
             num_positions=len(portfolio.positions),
             realized_pnl_cents=portfolio.realized_pnl_cents,
             db=self.trader.db,
+            market_feed=market_feed,
         )
 
         messages = [{"role": "user", "content": user_message}]

@@ -124,7 +124,7 @@ def _build_performance_review(db: "Database") -> str:
     return "\n".join(lines)
 
 
-def build_system_prompt(balance_cents: int, num_positions: int, realized_pnl_cents: int, db: "Database" = None) -> List[dict]:
+def build_system_prompt(balance_cents: int, num_positions: int, realized_pnl_cents: int, db: "Database" = None, market_feed: str = "") -> List[dict]:
     if config.ENABLE_WEB_RESEARCH:
         research_tools = RESEARCH_TOOLS_TEXT
         research_edge = RESEARCH_EDGE
@@ -156,7 +156,10 @@ The journal is a free-form scratchpad for cross-cutting notes that don't fit the
 - New categories or series to explore next session
 - Key research findings that are still relevant
 - Strategy-level observations
-Keep it concise. Position-specific reasoning belongs in theses, not the journal."""
+Keep it concise. Position-specific reasoning belongs in theses, not the journal.
+
+## Using the Market Feed
+A pre-built market feed is included below with current prices for your positions, watchlist series, and trending markets. **Browse the feed first** before using run_python to explore further. Only use run_python for markets to drill into specific orderbooks, check trade history, or do analysis — not to replicate data already in the feed. Combine related queries into a single run_python call when possible."""
 
     mode_label = "Research Mode (web search enabled)" if config.ENABLE_WEB_RESEARCH else "No-Research Mode"
     starting_balance = config.STARTING_BALANCE_CENTS
@@ -179,6 +182,9 @@ Keep it concise. Position-specific reasoning belongs in theses, not the journal.
     journal = read_journal()
     if journal:
         dynamic += f"\n## Journal from Previous Session\n{journal}\n"
+
+    if market_feed:
+        dynamic += f"\n{market_feed}\n"
 
     return [
         {
