@@ -30,7 +30,7 @@ class Trade(BaseModel):
     ticker: str
     market_title: str
     side: Literal["yes", "no"]
-    action: Literal["buy", "sell"]
+    action: Literal["buy", "sell", "settle"]
     quantity: int
     price_cents: int
     total_cost_cents: int
