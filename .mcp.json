@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "claudshi": {
+      "type": "stdio",
+      "command": "/Users/samuelkemper/claudshi/.venv/bin/python",
+      "args": [
+        "-m",
+        "agent.mcp_server"
+      ],
+      "env": {}
+    }
+  }
+}
