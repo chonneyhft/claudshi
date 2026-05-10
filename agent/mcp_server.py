@@ -227,10 +227,15 @@ def portfolio_snapshot() -> str:
 @mcp.resource("market://{ticker}/snapshot")
 def market_snapshot(ticker: str) -> str:
     """Per-market snapshot: detail + orderbook + recent trades, in one read."""
+    def _safe(fn, default):
+        try:
+            return fn()
+        except Exception as e:
+            return {"error": str(e), "value": default}
     return json.dumps({
         "market": kalshi.get_market(ticker),
-        "orderbook": kalshi.get_orderbook(ticker),
-        "recent_trades": kalshi.get_market_history(ticker, limit=20),
+        "orderbook": _safe(lambda: kalshi.get_orderbook(ticker), None),
+        "recent_trades": _safe(lambda: kalshi.get_market_history(ticker, limit=20), []),
     }, default=str, indent=2)
 
 
