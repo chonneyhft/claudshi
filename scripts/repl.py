@@ -10,9 +10,14 @@ from __future__ import annotations
 
 import argparse
 import sys
+from pathlib import Path
 
-from kalshi.client import KalshiDataClient
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+import config
+from engine.db import Database
 from engine.paper_trader import PaperTrader
+from kalshi.client import KalshiDataClient
 
 
 def main() -> int:
@@ -25,7 +30,10 @@ def main() -> int:
         print("repl.py: no code provided", file=sys.stderr)
         return 2
 
-    ns = {"kalshi": KalshiDataClient(), "trader": PaperTrader()}
+    kalshi = KalshiDataClient()
+    db = Database(config.DB_PATH)
+    trader = PaperTrader(db, kalshi)
+    ns = {"kalshi": kalshi, "trader": trader, "db": db}
     exec(compile(src, "<repl>", "exec"), ns)
     return 0
 
