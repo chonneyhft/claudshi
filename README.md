@@ -33,7 +33,10 @@ kalshi/
 scheduler/
   runner.py          APScheduler-based trading loop
 dashboard/
-  app.py             Streamlit dashboard for monitoring
+  app.py             Streamlit dashboard (legacy)
+api/
+  server.py          FastAPI read-only data layer for the web UI
+web/                 Vite + React + TypeScript dashboard
 ```
 
 ## Setup
@@ -64,8 +67,11 @@ python main.py status
 # Settle expired positions
 python main.py settle
 
-# Launch the monitoring dashboard
+# Launch the legacy Streamlit dashboard
 python main.py dashboard
+
+# Launch the new web dashboard (FastAPI + Vite/React on :8000 and :5173)
+./scripts/dev_web.sh
 ```
 
 ## Configuration

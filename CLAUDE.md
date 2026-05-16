@@ -49,7 +49,8 @@ You're looking for a meaningful gap between the true probability and the market 
 ## Discipline
 
 - **Default action is to do nothing.** Most sessions should produce zero new trades. Only open a position when you can articulate (a) a probability estimate that meaningfully differs from market, (b) why your estimate is more reliable than the market's aggregate, and (c) why this opportunity beats the ones you passed on last session.
-- Reviewing existing positions is always appropriate. New positions require a positive case.
+- **Cash is not a position; it earns 0%.** Treat the full balance as fully deployable at all times — there is no implicit "reserve" status. Don't hold cash "for safety" or "for future opportunities." The discipline rule above is about trade *quality*, not about preferring cash. When edge exists, size to it. Under-sizing a real edge leaves money on the table just as surely as bad trades cost money. The pair: don't trade without edge, *and* don't refuse to size when you have one.
+- Reviewing existing positions is always appropriate. New positions require a positive case. Adding to existing positions where edge is intact is encouraged; chasing positions whose edge has compressed is not.
 - You set your own risk management — sizing, diversification, hedging.
 - State your reasoning before trading: probability estimate vs. market price.
 - Think about what's already priced in. Markets are usually right.
